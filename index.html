@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>İlaç Hatırlatıcı</title>
+<meta name="description" content="İlaçlarınızı zamanında almanız için basit hatırlatıcı.">
+<meta name="theme-color" content="#0B5FA5">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="İlaçlarım">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="app-header">
+  <h1>İlaç Hatırlatıcı</h1>
+  <div id="clock" class="clock">--:--</div>
+</header>
+
+<div id="banners"></div>
+
+<main>
+  <!-- ================= BUGÜN ================= -->
+  <section id="view-bugun" class="view">
+    <div id="next-med" class="next-card" hidden>
+      <div class="next-label">SIRADAKİ İLAÇ</div>
+      <div id="next-name" class="next-name"></div>
+      <div id="next-time" class="next-time"></div>
+      <div id="next-countdown" class="next-countdown"></div>
+    </div>
+
+    <h2 id="today-title">Bugün</h2>
+    <div id="today-list" class="list"></div>
+  </section>
+
+  <!-- ================= İLAÇLAR ================= -->
+  <section id="view-ilaclar" class="view" hidden>
+    <button id="btn-add-med" class="btn btn-primary btn-block btn-xl">+ Yeni İlaç Ekle</button>
+    <h2>Kayıtlı İlaçlar</h2>
+    <div id="med-list" class="list"></div>
+
+    <h2>Veri Yedekleme</h2>
+    <div class="row-2">
+      <button id="btn-export" class="btn btn-secondary">Yedeği İndir</button>
+      <button id="btn-import" class="btn btn-secondary">Yedeği Yükle</button>
+    </div>
+    <input type="file" id="import-file" accept="application/json,.json" hidden>
+    <p class="hint">Veriler yalnızca bu cihazda saklanır. Ara sıra yedek indirmeniz önerilir.</p>
+  </section>
+
+  <!-- ================= TAKVİM ================= -->
+  <section id="view-takvim" class="view" hidden>
+    <div class="cal-head">
+      <button id="cal-prev" class="btn btn-secondary btn-icon" aria-label="Önceki ay">‹</button>
+      <div id="cal-title" class="cal-title"></div>
+      <button id="cal-next" class="btn btn-secondary btn-icon" aria-label="Sonraki ay">›</button>
+    </div>
+    <div id="calendar" class="calendar"></div>
+    <div class="legend">
+      <span>✅ Alındı</span><span>❌ Kaçırıldı</span><span>⏳ Bekliyor</span>
+    </div>
+
+    <h2>Uyum Oranı</h2>
+    <div id="stats" class="stats"></div>
+  </section>
+</main>
+
+<nav class="tabbar">
+  <button class="tab tab-active" data-view="bugun">Bugün</button>
+  <button class="tab" data-view="ilaclar">İlaçlar</button>
+  <button class="tab" data-view="takvim">Takvim</button>
+</nav>
+
+<!-- ============ İLAÇ EKLE / DÜZENLE ============ -->
+<div id="med-modal" class="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="med-modal-title">
+    <h2 id="med-modal-title">Yeni İlaç</h2>
+    <form id="med-form" novalidate>
+      <label for="f-name">İlaç adı</label>
+      <input type="text" id="f-name" autocomplete="off" placeholder="Örn. Aspirin" required>
+
+      <label for="f-note">Doz / not <span class="opt">(isteğe bağlı)</span></label>
+      <input type="text" id="f-note" autocomplete="off" placeholder="Örn. 1 tablet, yemekten sonra">
+
+      <label for="f-stock">Kutuda kaç adet var? <span class="opt">(isteğe bağlı)</span></label>
+      <input type="number" id="f-stock" min="0" step="1" inputmode="numeric" placeholder="Örn. 30">
+
+      <label>Alım saatleri</label>
+      <div id="time-rows"></div>
+      <button type="button" id="btn-add-time" class="btn btn-secondary btn-block">+ Saat Ekle</button>
+
+      <div id="form-error" class="form-error" hidden></div>
+
+      <div class="row-2 sticky-actions">
+        <button type="button" id="btn-cancel-med" class="btn btn-secondary">Vazgeç</button>
+        <button type="submit" class="btn btn-primary">Kaydet</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============ GÜN DETAYI ============ -->
+<div id="day-modal" class="overlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="day-modal-title">
+    <h2 id="day-modal-title">Gün</h2>
+    <div id="day-list" class="list"></div>
+    <p class="hint">Geçmiş kayıtlar değiştirilemez, yalnızca görüntülenir.</p>
+    <button id="btn-close-day" class="btn btn-primary btn-block">Kapat</button>
+  </div>
+</div>
+
+<!-- ============ ONAY DİYALOĞU ============ -->
+<div id="confirm-modal" class="overlay" hidden>
+  <div class="sheet sheet-sm" role="alertdialog" aria-modal="true" aria-labelledby="confirm-text">
+    <h2 id="confirm-text">Emin misiniz?</h2>
+    <div class="row-2">
+      <button id="confirm-no" class="btn btn-secondary">Hayır</button>
+      <button id="confirm-yes" class="btn btn-danger">Evet, sil</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
