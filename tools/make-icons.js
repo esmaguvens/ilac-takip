@@ -6,7 +6,7 @@ const path = require('path');
 const zlib = require('zlib');
 
 const OUT = path.join(__dirname, '..', 'icons');
-const BG = [11, 95, 165];        // #0B5FA5
+const BG = [31, 122, 104];       // #1F7A68 deniz yeşili
 const FG = [255, 255, 255];
 
 function crc32(buf) {

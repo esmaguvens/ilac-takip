@@ -1,19 +1,21 @@
 /* İlaç Hatırlatıcı — sade, büyük yazılı, yüksek kontrastlı arayüz */
 
 :root {
-  --bg: #F4F6F8;
+  --bg: #EFF7F3;            /* soft mint zemin */
   --card: #FFFFFF;
-  --text: #14181C;
-  --muted: #4A5560;
-  --line: #C8D0D8;
-  --primary: #0B5FA5;
-  --primary-press: #084B84;
-  --green: #1B7F3B;
-  --green-bg: #E4F6E9;
-  --red: #B3261E;
-  --red-bg: #FCE8E6;
-  --amber: #8A5A00;
-  --amber-bg: #FFF3D6;
+  --text: #10211C;
+  --muted: #46605A;
+  --line: #BCD9CE;
+  --primary: #1F7A68;       /* deniz yeşili — beyaz yazıyla 5.2:1 kontrast */
+  --primary-press: #165A4D;
+  --primary-soft: #DDF0E9;  /* açık mint dolgu */
+  --primary-ink: #0E4A3E;   /* açık mint üzerine koyu yeşil yazı */
+  --green: #17703C;         /* "alındı" — yaprak yeşili, ana renkten ayrışsın */
+  --green-bg: #E3F5E9;
+  --red: #A8271F;
+  --red-bg: #FBE9E7;
+  --amber: #7E5300;
+  --amber-bg: #FDF1D8;
   --radius: 14px;
   --tap: 56px;
 }
@@ -70,8 +72,13 @@ h2 { font-size: 22px; margin: 24px 0 12px; }
   border-radius: var(--radius);
   border: 2px solid transparent;
   cursor: pointer;
-  background: #E6EAEE;
+  background: var(--primary-soft);
   color: var(--text);
+}
+.btn, .tab, .cal-day {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: rgba(31, 122, 104, .15);
 }
 .btn:active { transform: translateY(1px); }
 .btn-primary { background: var(--primary); color: #fff; }
@@ -97,16 +104,17 @@ h2 { font-size: 22px; margin: 24px 0 12px; }
   border: 2px solid;
 }
 .banner-warn { background: var(--amber-bg); border-color: var(--amber); color: #4A3200; }
-.banner-info { background: #E7F0FA; border-color: var(--primary); color: #0A3E6B; }
+.banner-info { background: var(--primary-soft); border-color: var(--primary); color: var(--primary-ink); }
 .banner .btn { margin-top: 12px; }
 
 /* ---------- Sıradaki ilaç ---------- */
 .next-card {
-  background: var(--primary);
+  background: linear-gradient(135deg, #238973 0%, #1F7A68 55%, #196658 100%);
   color: #fff;
   border-radius: var(--radius);
   padding: 20px;
   margin-bottom: 20px;
+  box-shadow: 0 4px 16px rgba(31, 122, 104, .22);
 }
 .next-label { font-size: 15px; letter-spacing: 1.5px; opacity: .9; }
 .next-name { font-size: 30px; font-weight: 800; margin-top: 6px; }
@@ -137,8 +145,8 @@ h2 { font-size: 22px; margin: 24px 0 12px; }
 .empty { color: var(--muted); font-size: 19px; padding: 8px 2px; }
 .chip {
   display: inline-block;
-  background: #E7F0FA;
-  color: #0A3E6B;
+  background: var(--primary-soft);
+  color: var(--primary-ink);
   border-radius: 999px;
   padding: 4px 12px;
   font-size: 18px;
@@ -272,7 +280,7 @@ input:focus { outline: 3px solid var(--primary); outline-offset: 1px; border-col
   bottom: calc(96px + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 60;
-  background: #14181C;
+  background: #10302A;
   color: #fff;
   font-size: 19px;
   font-weight: 600;
