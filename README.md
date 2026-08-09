@@ -64,6 +64,34 @@ node tools/make-icons.js
 }
 ```
 
+## Sunucu (Faz 3 — Web Push)
+
+`server/` altındaki Cloudflare Worker, bildirimleri **telefon yerine sunucunun** göndermesini
+sağlar; böylece uygulama tamamen kapalıyken de hatırlatma gelir.
+
+- `server/src/push.js` — RFC 8291 (aes128gcm) ve RFC 8292 (VAPID) uygulaması.
+  Harici bağımlılık yok, yalnızca WebCrypto. RFC 8291 §5 test vektörüyle doğrulanıyor.
+- `server/src/index.js` — HTTP uçları ve dakikalık cron taraması.
+- Veriler Cloudflare KV'de: abonelik, zaman dilimi, ilaç adları/saatleri, erteleme kuyruğu.
+
+Testler:
+
+```bash
+cd server && npm test
+```
+
+Dağıtım:
+
+```bash
+cd server && npx wrangler deploy
+```
+
+Uygulamanın sunucuyu kullanması için `config.js` içindeki `pushApi` Worker adresine
+ayarlanır. Boş bırakılırsa uygulama eski davranışına döner (bildirimleri telefon zamanlar).
+
+Gizli VAPID anahtarı depoda tutulmaz; `npx wrangler secret put VAPID_PRIVATE_KEY`
+ile yalnızca Cloudflare'de saklanır.
+
 ## Bilinen teknik kısıtlamalar
 
 - **Backend olmadığı için** bildirimlerin tetiklenmesi, uygulamanın (tarayıcı sekmesi veya PWA)

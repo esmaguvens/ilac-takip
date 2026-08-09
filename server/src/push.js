@@ -7,7 +7,13 @@ const enc = new TextEncoder();
 /* ---------------- base64url ---------------- */
 
 export function b64urlToBytes(s) {
-  const b64 = s.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (s.length % 4)) % 4);
+  // Boşluk/satır sonu temizle (ortam değişkenlerine kolayca bulaşabiliyor)
+  const temiz = String(s == null ? '' : s).replace(/\s+/g, '').replace(/=+$/, '');
+  if (!temiz) throw new Error('base64 değeri boş');
+  if (!/^[A-Za-z0-9+/_-]+$/.test(temiz)) throw new Error('base64 değerinde geçersiz karakter var');
+  if (temiz.length % 4 === 1) throw new Error('base64 değerinin uzunluğu geçersiz');
+
+  const b64 = temiz.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (temiz.length % 4)) % 4);
   const bin = atob(b64);
   const out = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);

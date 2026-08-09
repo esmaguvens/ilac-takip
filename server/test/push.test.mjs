@@ -76,5 +76,34 @@ if (m) {
   check('İmza doğrulaması', 'true', String(gecerli));
 }
 
+console.log('\nKirli girdiye dayanıklılık:');
+// Ortam değişkenine bulaşan satır sonu / boşluk / padding sorun çıkarmamalı
+const temizBekleniyor = bytesToB64url(b64urlToBytes(V.auth));
+check('sondaki \\r\\n yok sayılıyor', temizBekleniyor, bytesToB64url(b64urlToBytes(V.auth + '\r\n')));
+check('baştaki boşluk yok sayılıyor', temizBekleniyor, bytesToB64url(b64urlToBytes('  ' + V.auth)));
+check('padding\'li girdi kabul ediliyor', temizBekleniyor, bytesToB64url(b64urlToBytes(V.auth + '==')));
+check('standart base64 (+/) kabul ediliyor',
+  bytesToB64url(b64urlToBytes('a-b_')), bytesToB64url(b64urlToBytes('a+b/')));
+
+let hataAlindiUzunluk = '';
+try { b64urlToBytes('abcde'); } catch (e) { hataAlindiUzunluk = 'evet'; }
+check('geçersiz uzunlukta anlamlı hata', 'evet', hataAlindiUzunluk);
+
+let hataAlindi = '';
+try { b64urlToBytes('geçersiz!karakter'); } catch (e) { hataAlindi = 'evet'; }
+check('geçersiz karakterde anlamlı hata', 'evet', hataAlindi);
+hataAlindi = '';
+try { b64urlToBytes('   '); } catch (e) { hataAlindi = 'evet'; }
+check('boş değerde anlamlı hata', 'evet', hataAlindi);
+
+// Satır sonu bulaşmış gizli anahtarla VAPID başlığı yine üretilebilmeli
+const k2 = await generateVapidKeys();
+let vapidOk = 'hayır';
+try {
+  await vapidHeader('https://fcm.googleapis.com/fcm/send/x', k2.publicKey, k2.privateKey + '\n', 'mailto:a@b.c');
+  vapidOk = 'evet';
+} catch (e) { vapidOk = 'hata: ' + e.message; }
+check('satır sonlu gizli anahtarla VAPID', 'evet', vapidOk);
+
 console.log(fail === 0 ? '\nTÜM TESTLER GEÇTİ' : '\n' + fail + ' TEST BAŞARISIZ');
 process.exit(fail === 0 ? 0 : 1);
