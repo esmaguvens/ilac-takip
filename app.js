@@ -28,6 +28,9 @@ let currentView = 'bugun';
 let calCursor = new Date();       // takvimde gösterilen ay
 let editingMedId = null;
 let swReg = null;
+let installPrompt = null;         // Android'de "Uygulamayı Yükle" için
+let storageOk = true;             // localStorage yazılabiliyor mu
+let storageErrName = null;        // yazılamıyorsa hatanın adı
 
 /* ---------------------- Yardımcılar ---------------------- */
 
@@ -105,12 +108,34 @@ function load() {
   }
 }
 
+/** localStorage gerçekten yazılabiliyor mu? */
+function checkStorage() {
+  try {
+    localStorage.setItem('__ilac_test__', '1');
+    localStorage.removeItem('__ilac_test__');
+    storageOk = true;
+    storageErrName = null;
+  } catch (err) {
+    storageOk = false;
+    storageErrName = (err && err.name) || 'Bilinmeyen hata';
+    console.error('Depolama kullanılamıyor:', err);
+  }
+  return storageOk;
+}
+
 function save() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    if (!storageOk) { storageOk = true; storageErrName = null; renderBanners(); }
   } catch (err) {
     console.error('Veri kaydedilemedi:', err);
-    toast('Veriler kaydedilemedi! Depolama alanı dolu olabilir.');
+    storageOk = false;
+    storageErrName = (err && err.name) || 'Bilinmeyen hata';
+    const dolu = err && (err.name === 'QuotaExceededError' || err.code === 22);
+    toast(dolu
+      ? 'Kaydedilemedi: tarayıcının bu site için ayırdığı alan dolu.'
+      : 'Kaydedilemedi: tarayıcı bu site için veri saklamayı engelliyor.', 6000);
+    renderBanners();
   }
 }
 
@@ -346,9 +371,40 @@ function updateClock() {
 
 /* ---------------------- Ekran: uyarı şeritleri ---------------------- */
 
+function isStandalone() {
+  return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+         window.navigator.standalone === true;
+}
+
 function renderBanners() {
   const box = $('#banners');
   box.innerHTML = '';
+
+  // Depolama çalışmıyorsa her şeyden önce bunu söyle
+  if (!storageOk) {
+    box.appendChild(banner('warn',
+      '<b>Kayıtlar saklanamıyor.</b><br>' +
+      'Tarayıcı bu site için veri saklamaya izin vermiyor, bu yüzden eklediğiniz ilaçlar ' +
+      'uygulamayı kapatınca kaybolur.<br><br>' +
+      'Sırasıyla deneyin:<br>' +
+      '1. Gizli sekmeyi kapatın, normal sekmede açın.<br>' +
+      '2. Chrome → ⋮ → Ayarlar → Site ayarları → Çerezler → bu siteye izin verin.<br>' +
+      '3. Aşağıdaki "Uygulamayı Yükle" ile kurup ana ekrandaki simgeden açın.<br><br>' +
+      '<span class="hint">Teknik ayrıntı: ' + storageErrName + '</span>'));
+  }
+
+  // Android'de gerçek kurulum (WebAPK) — Chrome sekmesi yerine ayrı uygulama olarak açılır
+  if (installPrompt && !isStandalone()) {
+    const b = banner('info',
+      '<b>Uygulama olarak yükleyin.</b><br>' +
+      'Böylece Chrome sekmesi yerine ayrı bir uygulama gibi açılır ve bildirimler daha güvenilir çalışır.');
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-primary btn-block';
+    btn.textContent = 'Uygulamayı Yükle';
+    btn.addEventListener('click', doInstall);
+    b.appendChild(btn);
+    box.appendChild(b);
+  }
 
   const perm = notifPermission();
   if (perm === 'denied') {
@@ -377,6 +433,19 @@ function renderBanners() {
     const txt = low.map((m) => m.name + ': ' + m.stockCount + ' adet').join('<br>');
     box.appendChild(banner('warn', '<b>Eczaneden almayı unutmayın</b><br>' + txt));
   }
+}
+
+async function doInstall() {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  try {
+    const res = await installPrompt.userChoice;
+    if (res && res.outcome === 'accepted') toast('Uygulama yükleniyor...');
+  } catch (err) {
+    console.error(err);
+  }
+  installPrompt = null;
+  renderBanners();
 }
 
 function banner(kind, html) {
@@ -1033,7 +1102,7 @@ function switchView(name) {
 function render() {
   renderBanners();
   if (currentView === 'bugun')   renderToday();
-  if (currentView === 'ilaclar') renderMeds();
+  if (currentView === 'ilaclar') { renderMeds(); renderStorageInfo(); }
   if (currentView === 'takvim')  renderCalendar();
 }
 
@@ -1078,9 +1147,49 @@ function bindEvents() {
 
   document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
   window.addEventListener('focus', tick);
+
+  // Android: Chrome kurulabilir olduğunu bildirdiğinde kendi butonumuzu gösterelim
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    installPrompt = e;
+    renderBanners();
+  });
+  window.addEventListener('appinstalled', () => {
+    installPrompt = null;
+    toast('Uygulama ana ekrana kuruldu. Bundan sonra oradaki simgeden açın.', 6000);
+    renderBanners();
+  });
+}
+
+/** İlaçlar sekmesindeki depolama durumu satırı */
+async function renderStorageInfo() {
+  const el = $('#storage-info');
+  if (!el) return;
+
+  const parts = [];
+  parts.push(storageOk ? 'Kayıt: çalışıyor' : 'Kayıt: ÇALIŞMIYOR (' + storageErrName + ')');
+  parts.push(isStandalone() ? 'Açılış: uygulama olarak' : 'Açılış: tarayıcı sekmesi');
+
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY) || '';
+    parts.push('Veri boyutu: ' + Math.max(1, Math.round(raw.length / 1024)) + ' KB');
+  } catch (err) { /* okunamıyorsa boş geç */ }
+
+  if (navigator.storage && navigator.storage.estimate) {
+    try {
+      const est = await navigator.storage.estimate();
+      if (est && est.quota) {
+        parts.push('Tarayıcı alanı: ' + Math.round(est.quota / 1048576) + ' MB (kullanılan ' +
+                   Math.round((est.usage || 0) / 1024) + ' KB)');
+      }
+    } catch (err) { /* desteklenmiyorsa boş geç */ }
+  }
+
+  el.textContent = parts.join(' · ');
 }
 
 async function init() {
+  checkStorage();
   load();
   backfillLogs();
   autoMarkMissed();
@@ -1092,6 +1201,11 @@ async function init() {
 
   await registerServiceWorker();
   await drainPendingActions();
+
+  // Tarayıcı yer açmak için verilerimizi silmesin
+  if (navigator.storage && navigator.storage.persist) {
+    try { await navigator.storage.persist(); } catch (err) { /* zorunlu değil */ }
+  }
 
   // İlk açılışta bildirim izni iste (izin verilmemişse şerit görünür kalır)
   if (notifPermission() === 'default' && !state.settings.notifAsked) {

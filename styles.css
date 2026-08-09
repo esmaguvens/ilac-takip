@@ -272,6 +272,7 @@ input:focus { outline: 3px solid var(--primary); outline-offset: 1px; border-col
 }
 .sticky-actions { margin-top: 24px; }
 .hint { color: var(--muted); font-size: 17px; }
+.diag { font-size: 15px; line-height: 1.5; word-break: break-word; }
 
 /* ---------- Toast ---------- */
 .toast {
