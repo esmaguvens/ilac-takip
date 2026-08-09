@@ -5,12 +5,13 @@
    3) Bildirimdeki Tamam / 15 dk Ertele / 30 dk Ertele seçimlerini uygulamaya iletmek
 */
 
-const CACHE = 'ilac-takip-v6';
+const CACHE = 'ilac-takip-v7';
 const ASSETS = [
   './',
   './index.html',
   './styles.css',
   './app.js',
+  './config.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png'
@@ -75,17 +76,42 @@ self.addEventListener('message', (event) => {
   );
 });
 
+/* ---------------- Sunucudan gelen bildirim (Web Push) ---------------- */
+
+self.addEventListener('push', (event) => {
+  let p = {};
+  try { p = event.data ? event.data.json() : {}; } catch (err) { p = { title: 'İlaç saati' }; }
+
+  event.waitUntil(
+    self.registration.showNotification(p.title || 'İlaç saati', {
+      body: p.body || 'İlacınızı alma zamanı',
+      tag: 'ilac-' + (p.logKey || Date.now()),
+      renotify: true,
+      requireInteraction: true,
+      icon: './icons/icon-192.png',
+      badge: './icons/icon-192.png',
+      vibrate: [300, 150, 300],
+      data: p,
+      actions: p.test ? [] : [
+        { action: 'confirm',  title: 'Tamam' },
+        { action: 'snooze15', title: '15 dk Ertele' },
+        { action: 'snooze30', title: '30 dk Ertele' }
+      ]
+    })
+  );
+});
+
 /* ---------------- Bildirime tıklama ---------------- */
 
 self.addEventListener('notificationclick', (event) => {
   const action = event.action;                    // '' | confirm | snooze15 | snooze30
-  const logId = (event.notification.data || {}).logId;
+  const data = event.notification.data || {};
   event.notification.close();
 
-  event.waitUntil(handleAction(action, logId));
+  event.waitUntil(handleAction(action, data));
 });
 
-async function handleAction(action, logId) {
+async function handleAction(action, data) {
   const clientList = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
 
   // Bildirimin gövdesine tıklandıysa sadece uygulamayı aç
@@ -94,18 +120,38 @@ async function handleAction(action, logId) {
     return self.clients.openWindow('./index.html');
   }
 
-  if (!logId) return;
+  if (!data.logId && !data.logKey) return;
+
+  // Erteleme sunucudan geldiyse, yeni bildirimi de sunucu göndermeli
+  if ((action === 'snooze15' || action === 'snooze30') && data.api && data.deviceId) {
+    const dakika = action === 'snooze15' ? 15 : 30;
+    try {
+      await fetch(data.api + '/api/snooze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deviceId: data.deviceId, minutes: dakika,
+          name: data.name || 'İlaç', note: data.note || '', time: data.time || ''
+        })
+      });
+    } catch (err) {
+      console.error('Erteleme sunucuya bildirilemedi:', err);
+    }
+  }
+
+  const mesaj = {
+    type: 'notification-action', action: action,
+    logId: data.logId || null, logKey: data.logKey || null, at: Date.now()
+  };
 
   // Uygulama açıksa doğrudan ona ilet
   if (clientList.length) {
-    clientList.forEach((c) => c.postMessage({
-      type: 'notification-action', action: action, logId: logId, at: Date.now()
-    }));
+    clientList.forEach((c) => c.postMessage(mesaj));
     return;
   }
 
   // Uygulama kapalıysa sıraya yaz; uygulama açıldığında işlenecek
-  await queueAction(action, logId);
+  await queueAction(action, data.logId || null, data.logKey || null);
 }
 
 /* ---------------- Bekleyen aksiyon kuyruğu (IndexedDB) ---------------- */
@@ -124,12 +170,14 @@ function idbOpen() {
   });
 }
 
-async function queueAction(action, logId) {
+async function queueAction(action, logId, logKey) {
   try {
     const db = await idbOpen();
     await new Promise((resolve, reject) => {
       const tx = db.transaction('pendingActions', 'readwrite');
-      tx.objectStore('pendingActions').add({ action: action, logId: logId, at: Date.now() });
+      tx.objectStore('pendingActions').add({
+        action: action, logId: logId, logKey: logKey || null, at: Date.now()
+      });
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error);
     });

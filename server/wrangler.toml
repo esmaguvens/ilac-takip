@@ -1,0 +1,20 @@
+name = "ilac-hatirlatici"
+main = "src/index.js"
+compatibility_date = "2026-08-01"
+
+# Dakikada bir çalışır: vakti gelen ilaçlar için bildirim gönderir
+[triggers]
+crons = ["* * * * *"]
+
+# Abonelikler ve ilaç saatleri burada saklanır.
+# id değeri "npx wrangler kv namespace create DEVICES" komutuyla oluşturulur.
+[[kv_namespaces]]
+binding = "DEVICES"
+id = "BURAYA_KV_ID"
+
+[vars]
+VAPID_SUBJECT = "mailto:esmaguven2206@gmail.com"
+ALLOWED_ORIGIN = "https://esmaguvens.github.io"
+# VAPID_PUBLIC_KEY dağıtım sırasında eklenir
+# VAPID_PRIVATE_KEY gizli anahtar olarak saklanır:
+#   npx wrangler secret put VAPID_PRIVATE_KEY

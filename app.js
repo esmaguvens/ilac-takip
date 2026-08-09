@@ -230,7 +230,7 @@ async function askNotificationPermission() {
   }
   try {
     const res = await Notification.requestPermission();
-    if (res === 'granted') toast('Bildirimler açıldı.');
+    if (res === 'granted') { toast('Bildirimler açıldı.'); pushKur(); }
     else toast('Bildirim izni verilmedi.');
   } catch (err) {
     console.error(err);
@@ -697,6 +697,7 @@ function deleteMed(id) {
     (l) => !(l.medicationId === id && l.status === 'bekliyor')
   );
   save();
+  planSenkronize();
   render();
   toast((med ? med.name : 'İlaç') + ' silindi.');
 }
@@ -979,6 +980,7 @@ function submitMedForm(e) {
 
   ensureLogsForDate(todayStr());
   save();
+  planSenkronize();
   closeMedModal();
   render();
 }
@@ -1046,6 +1048,113 @@ async function importData(file) {
   }
 }
 
+/* ---------------------- Sunucu (Web Push) ---------------------- */
+
+const PUSH_API = (window.ILAC_CONFIG && window.ILAC_CONFIG.pushApi) || '';
+let pushDurumu = PUSH_API ? 'bekliyor' : 'kapalı';
+
+function cihazId() {
+  if (!state.settings.deviceId) {
+    state.settings.deviceId = uid();
+    save();
+  }
+  return state.settings.deviceId;
+}
+
+/** Sunucuya gönderilecek sadeleştirilmiş ilaç listesi */
+function planOzeti() {
+  return state.medications
+    .filter((m) => m.active)
+    .map((m) => ({
+      name: m.name,
+      note: m.dosageNote || '',
+      times: m.times.map((t) => t.time)
+    }));
+}
+
+function urlB64ToUint8(b64) {
+  const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+/** Aboneliği kurar ve ilaç planını sunucuya gönderir */
+async function pushKur() {
+  if (!PUSH_API) { pushDurumu = 'kapalı'; return; }
+  if (!swReg || !swReg.pushManager) { pushDurumu = 'desteklenmiyor'; return; }
+  if (notifPermission() !== 'granted') { pushDurumu = 'bildirim izni yok'; return; }
+
+  try {
+    let sub = await swReg.pushManager.getSubscription();
+    if (!sub) {
+      const res = await fetch(PUSH_API + '/api/key');
+      const { publicKey } = await res.json();
+      if (!publicKey) throw new Error('sunucu anahtarı alınamadı');
+      sub = await swReg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8(publicKey)
+      });
+    }
+    await planGonder(sub);
+    pushDurumu = 'bağlı';
+  } catch (err) {
+    console.error('Sunucu aboneliği kurulamadı:', err);
+    pushDurumu = 'hata: ' + (err && err.message ? err.message : err);
+  }
+  render();
+}
+
+async function planGonder(sub) {
+  const abone = sub || (swReg && await swReg.pushManager.getSubscription());
+  if (!abone || !PUSH_API) return;
+
+  const res = await fetch(PUSH_API + '/api/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      deviceId: cihazId(),
+      subscription: abone.toJSON(),
+      tz: (Intl.DateTimeFormat().resolvedOptions().timeZone) || 'Europe/Istanbul',
+      meds: planOzeti()
+    })
+  });
+  if (!res.ok) throw new Error('sunucu kaydı reddetti (' + res.status + ')');
+}
+
+/** İlaç listesi değiştiğinde sunucuyu güncelle (arka arkaya çağrıları birleştirir) */
+function planSenkronize() {
+  if (!PUSH_API || pushDurumu !== 'bağlı') return;
+  clearTimeout(planSenkronize._t);
+  planSenkronize._t = setTimeout(() => {
+    planGonder().catch((err) => {
+      console.error('Plan gönderilemedi:', err);
+      pushDurumu = 'senkronizasyon hatası';
+      render();
+    });
+  }, 800);
+}
+
+async function testBildirimiGonder() {
+  if (!PUSH_API) { toast('Sunucu ayarlı değil.'); return; }
+  if (pushDurumu !== 'bağlı') { toast('Önce bildirim izni verin, sunucuya bağlanılsın.'); return; }
+  toast('Test bildirimi isteniyor...');
+  try {
+    const res = await fetch(PUSH_API + '/api/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deviceId: cihazId() })
+    });
+    const data = await res.json();
+    toast(res.ok && data.ok
+      ? 'Sunucu bildirimi gönderdi, birazdan gelmeli.'
+      : 'Sunucu gönderemedi: ' + (data.error || data.status), 6000);
+  } catch (err) {
+    toast('Sunucuya ulaşılamadı.');
+  }
+}
+
 /* ---------------------- Service Worker köprüsü ---------------------- */
 
 function idbOpen() {
@@ -1078,7 +1187,7 @@ async function drainPendingActions() {
   if (items.length) {
     items
       .sort((a, b) => (a.at || 0) - (b.at || 0))
-      .forEach((item) => applyRemoteAction(item.action, item.logId, item.at));
+      .forEach((item) => applyRemoteAction(item.action, item.logId, item.at, item.logKey));
 
     await new Promise((resolve) => {
       const tx = db.transaction('pendingActions', 'readwrite');
@@ -1091,10 +1200,32 @@ async function drainPendingActions() {
   db.close();
 }
 
-function applyRemoteAction(action, logId, at) {
-  if (action === 'confirm')  markTaken(logId, at);
-  if (action === 'snooze15') snoozeLog(logId, 15, at);
-  if (action === 'snooze30') snoozeLog(logId, 30, at);
+/** Sunucudan gelen bildirimler log id'si bilmez; "tarih|saat|ilaç adı" ile eşleştirilir */
+function logIdFromKey(key) {
+  const [tarih, saat, ...adParcalari] = String(key).split('|');
+  const ad = adParcalari.join('|');
+  if (!tarih || !saat) return null;
+
+  const bul = () => {
+    const kayitlar = state.logs.filter((l) => l.scheduledDate === tarih && l.scheduledTime === saat);
+    const eslesen = kayitlar.find((l) => {
+      const med = medById(l.medicationId);
+      return med && med.name === ad;
+    });
+    return eslesen || kayitlar[0] || null;
+  };
+
+  let log = bul();
+  if (!log) { ensureLogsForDate(tarih); log = bul(); }
+  return log ? log.id : null;
+}
+
+function applyRemoteAction(action, logId, at, logKey) {
+  const id = logId || (logKey && logKey !== 'test' ? logIdFromKey(logKey) : null);
+  if (!id) return;
+  if (action === 'confirm')  markTaken(id, at);
+  if (action === 'snooze15') snoozeLog(id, 15, at);
+  if (action === 'snooze30') snoozeLog(id, 30, at);
 }
 
 async function registerServiceWorker() {
@@ -1113,7 +1244,7 @@ async function registerServiceWorker() {
   navigator.serviceWorker.addEventListener('message', (event) => {
     const msg = event.data || {};
     if (msg.type === 'notification-action') {
-      applyRemoteAction(msg.action, msg.logId, msg.at);
+      applyRemoteAction(msg.action, msg.logId, msg.at, msg.logKey);
     }
   });
 }
@@ -1166,6 +1297,8 @@ function bindEvents() {
     window.scrollTo(0, 0);
   });
 
+  $('#btn-push-test').addEventListener('click', testBildirimiGonder);
+
   $('#btn-export').addEventListener('click', exportData);
   $('#btn-import').addEventListener('click', () => $('#import-file').click());
   $('#import-file').addEventListener('change', (e) => {
@@ -1213,6 +1346,8 @@ function bindEvents() {
 async function renderStorageInfo() {
   const el = $('#storage-info');
   if (!el) return;
+  const testBtn = $('#btn-push-test');
+  if (testBtn) testBtn.hidden = !PUSH_API;
 
   const parts = [];
   parts.push(storageOk ? 'Kayıt: çalışıyor' : 'Kayıt: ÇALIŞMIYOR (' + storageErrName + ')');
@@ -1222,6 +1357,7 @@ async function renderStorageInfo() {
     : installPromptSeen ? 'teklif kullanıldı'
     : 'tarayıcı teklif sunmadı'));
   parts.push('Bildirim: ' + notifPermission());
+  parts.push('Sunucu: ' + pushDurumu);
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || '';
@@ -1270,6 +1406,9 @@ async function init() {
   render();
   tick();
   setInterval(tick, TICK_MS);
+
+  // Sunucu ayarlıysa aboneliği kur ve ilaç planını gönder
+  pushKur();
 }
 
 init();

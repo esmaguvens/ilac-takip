@@ -1,0 +1,16 @@
+{
+  "name": "ilac-hatirlatici-sunucu",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "İlaç Hatırlatıcı için Web Push gönderen Cloudflare Worker",
+  "scripts": {
+    "test": "node test/push.test.mjs && node test/schedule.test.mjs",
+    "keys": "node tools/generate-vapid.mjs",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}
