@@ -10,11 +10,13 @@ crons = ["* * * * *"]
 # id değeri "npx wrangler kv namespace create DEVICES" komutuyla oluşturulur.
 [[kv_namespaces]]
 binding = "DEVICES"
-id = "BURAYA_KV_ID"
+id = "9945ba09254f4af6a5812964f98a11b4"
 
 [vars]
 VAPID_SUBJECT = "mailto:esmaguven2206@gmail.com"
 ALLOWED_ORIGIN = "https://esmaguvens.github.io"
+VAPID_PUBLIC_KEY = "BMf_f83VJu60z21R95TRPEKvOrnTNUjbKkceHFqUjnxp29vL9xIYNJF2GQxQf2pZz8zb-JZLtpgPewxpGNeZLTA"
+PUBLIC_API_URL = "https://ilac-hatirlatici.esmaguven2206.workers.dev"
 # VAPID_PUBLIC_KEY dağıtım sırasında eklenir
 # VAPID_PRIVATE_KEY gizli anahtar olarak saklanır:
 #   npx wrangler secret put VAPID_PRIVATE_KEY

@@ -4,5 +4,5 @@
    Cloudflare Worker adresi girilirse bildirimleri sunucu gönderir. */
 
 window.ILAC_CONFIG = {
-  pushApi: ''
+  pushApi: 'https://ilac-hatirlatici.esmaguven2206.workers.dev'
 };
