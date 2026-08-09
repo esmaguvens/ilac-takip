@@ -1158,6 +1158,14 @@ function bindEvents() {
     renderCalendar();
   });
 
+  $('#btn-install-help').addEventListener('click', () => {
+    state.settings.installHelpDismissed = false;
+    showInstallHelp = true;
+    save();
+    renderBanners();
+    window.scrollTo(0, 0);
+  });
+
   $('#btn-export').addEventListener('click', exportData);
   $('#btn-import').addEventListener('click', () => $('#import-file').click());
   $('#import-file').addEventListener('change', (e) => {

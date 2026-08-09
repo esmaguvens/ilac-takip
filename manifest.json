@@ -4,7 +4,6 @@
   "description": "İlaçlarınızı zamanında almanız için basit ve büyük yazılı hatırlatıcı.",
   "lang": "tr",
   "dir": "ltr",
-  "id": "./",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
