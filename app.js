@@ -29,6 +29,8 @@ let calCursor = new Date();       // takvimde gösterilen ay
 let editingMedId = null;
 let swReg = null;
 let installPrompt = null;         // Android'de "Uygulamayı Yükle" için
+let installPromptSeen = false;    // tarayıcı kurulum teklifi sundu mu
+let showInstallHelp = false;      // teklif gelmediyse elle kurulum anlatımı
 let storageOk = true;             // localStorage yazılabiliyor mu
 let storageErrName = null;        // yazılamıyorsa hatanın adı
 
@@ -391,6 +393,35 @@ function renderBanners() {
       '2. Chrome → ⋮ → Ayarlar → Site ayarları → Çerezler → bu siteye izin verin.<br>' +
       '3. Aşağıdaki "Uygulamayı Yükle" ile kurup ana ekrandaki simgeden açın.<br><br>' +
       '<span class="hint">Teknik ayrıntı: ' + storageErrName + '</span>'));
+  }
+
+  // Tarayıcı kurulum teklifi sunmuyorsa elle kurulum anlatımı
+  if (showInstallHelp && !installPrompt && !isStandalone() && !state.settings.installHelpDismissed) {
+    const ua = navigator.userAgent;
+    let adimlar;
+    if (/iPhone|iPad|iPod/i.test(ua)) {
+      adimlar =
+        '1. Bu sayfayı <b>Safari</b> ile açın (Chrome ile olmaz).<br>' +
+        '2. Alttaki <b>Paylaş</b> düğmesine basın (kare içinden yukarı ok).<br>' +
+        '3. Listeyi aşağı kaydırıp <b>Ana Ekrana Ekle</b> deyin → <b>Ekle</b>.';
+    } else {
+      adimlar =
+        '1. Chrome\'da sağ üstteki <b>⋮</b> menüsünü açın.<br>' +
+        '2. <b>Uygulamayı yükle</b> (veya <b>Ana ekrana ekle</b>) satırına basın.<br>' +
+        '3. Açılan pencerede <b>Yükle</b> deyin — <b>“Kısayol oluştur”u seçmeyin</b>, o Chrome sekmesi olarak açar.<br><br>' +
+        '⚠️ Menüdeki <b>aşağı ok (⬇) indirme düğmesi değil</b>! O, sayfayı çevrimdışı dosya olarak kaydeder, uygulama kurmaz.';
+    }
+    const b = banner('info', '<b>Ana ekrana uygulama olarak nasıl eklenir?</b><br>' + adimlar);
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-secondary btn-block';
+    btn.textContent = 'Anladım, bir daha gösterme';
+    btn.addEventListener('click', () => {
+      state.settings.installHelpDismissed = true;
+      save();
+      renderBanners();
+    });
+    b.appendChild(btn);
+    box.appendChild(b);
   }
 
   // Android'de gerçek kurulum (WebAPK) — Chrome sekmesi yerine ayrı uygulama olarak açılır
@@ -1152,8 +1183,17 @@ function bindEvents() {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     installPrompt = e;
+    installPromptSeen = true;
     renderBanners();
   });
+
+  // Teklif birkaç saniye içinde gelmezse elle kurulum anlatımını göster
+  setTimeout(() => {
+    if (!installPrompt && !isStandalone()) {
+      showInstallHelp = true;
+      renderBanners();
+    }
+  }, 5000);
   window.addEventListener('appinstalled', () => {
     installPrompt = null;
     toast('Uygulama ana ekrana kuruldu. Bundan sonra oradaki simgeden açın.', 6000);
@@ -1169,6 +1209,11 @@ async function renderStorageInfo() {
   const parts = [];
   parts.push(storageOk ? 'Kayıt: çalışıyor' : 'Kayıt: ÇALIŞMIYOR (' + storageErrName + ')');
   parts.push(isStandalone() ? 'Açılış: uygulama olarak' : 'Açılış: tarayıcı sekmesi');
+  parts.push('Kurulum: ' + (isStandalone() ? 'kurulu'
+    : installPrompt ? 'hazır — yukarıdaki butona basın'
+    : installPromptSeen ? 'teklif kullanıldı'
+    : 'tarayıcı teklif sunmadı'));
+  parts.push('Bildirim: ' + notifPermission());
 
   try {
     const raw = localStorage.getItem(STORAGE_KEY) || '';

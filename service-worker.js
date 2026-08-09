@@ -5,7 +5,7 @@
    3) Bildirimdeki Tamam / 15 dk Ertele / 30 dk Ertele seçimlerini uygulamaya iletmek
 */
 
-const CACHE = 'ilac-takip-v4';
+const CACHE = 'ilac-takip-v5';
 const ASSETS = [
   './',
   './index.html',
